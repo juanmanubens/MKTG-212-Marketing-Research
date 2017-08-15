@@ -1,0 +1,63 @@
+---
+title: "MKTG 212 - A3"
+author: "Juan"
+date: "March 16, 2017"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+library(knitr); library(leaps); library(ggplot2); library(dplyr); library(glmnet); library(ineq) ; library(corrplot); library('splines'); library("randomForest"); library("chron")
+knitr::opts_chunk$set(tidy=TRUE, fig.width=6,  fig.height=5, fig.align='left', dev = 'pdf')
+opts_knit$set(root.dir = "/Users/Juan//Dropbox/000SeniorSpring/STAT 471/Data")
+```
+
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r }
+q2b <- read.table("Survey Data with item non-response.txt", stringsAsFactors = FALSE, header = TRUE)
+```
+
+```{r}
+q2b <- read.table("Survey Data with item non-response.txt", stringsAsFactors = FALSE, header = TRUE)
+findNA <- function(i){ length(which(q2b[i,] != ".")) }
+NAperrow <- unlist(lapply(c(1:120),findNA))
+NAperrow.delete <- (NAperrow < 10)
+index <- grep(TRUE,NAperrow.delete)
+q2b.clean <- q2b[-c(index),]
+q2b.clean <- as.data.frame(q2b.clean)
+for (i in 1:10){q2b.clean[,i]  <- as.numeric(q2b.clean[,i])}
+lm.q2b <- lm(Q10 ~ Q1 + Q2 + Q3 + Q4 + Q5 + Q6 + Q7 + Q8 + Q9, data = q2b.clean)
+lm.summary.q2b <- summary(lm.q2b); lm.summary.q2b
+```
+
+ [1] "NEW.RENTALS"   "Month"         "Year"          "DIM"           "ATTRIBUTE"    
+ [6] "TOTAL.UNITS"   "BEG.OCC.UNITS" "VACANT.UNITS"  "SQFT..OCC."    "STREET.RATE"  
+[11] "Unit.SF"       "Total.SF"
+
+
+# [1] "NEW.RENTALS
+
+Data Type: Integer
+
+## Overview
+
+
+```{r}
+srp$NEW.RENTALS %>% unique 
+
+hertz.cust$Staff_Courtesy %>% is.na %>% sum #2260
+hertz.cust$Staff_Courtesy %>% table 
+hertz.cust$Staff_Courtesy %>% hist
+```
+
+
+

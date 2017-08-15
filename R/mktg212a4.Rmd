@@ -1,0 +1,890 @@
+---
+title: "MKTG 212 - A4"
+author: "Juan"
+date: "March 16, 2017"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+library(knitr); library(leaps); library(ggplot2); library(dplyr); library(glmnet); library(ineq) ; library(corrplot); library('splines'); library("randomForest"); library("chron");library(tree); library(pROC); library(MASS); library(car); library("ResourceSelection"); library("gridExtra"); library("bestglm"); library("logisticPCA"); library("rARPACK"); library("psych"); library("nFactors");library(e1071); library("sampling"); library("data.table"); library("nnet");library("neuralnet");library("dismo");library("rpart"); library("ROCR"); library(readxl); library('latex2exp'); library(WriteXLS); library(gridExtra); library("stats")
+knitr::opts_chunk$set(tidy=TRUE, fig.width=6,  fig.height=5, fig.align='left', dev = 'pdf')
+opts_knit$set(root.dir = "/Users/Juan//Dropbox/000SeniorSpring/STAT 471/Data")
+```
+
+# Part 1
+
+```{r }
+views <- read.table("TV_viewing.txt", stringsAsFactors = FALSE, header = TRUE)
+len <- function(i){length(i)}
+```
+
+
+```{r}
+views$HHNumber <- views$HHNumber %>% as.factor
+views %>% str
+```
+
+```{r}
+views.NAcounts <- function(i){ sum(is.na(views[,i])) }
+views.NApercol <- unlist(lapply(c(1:length(names(views))),views.NAcounts))
+views.NApercol # Data has no NAs
+
+views %>% names
+```
+
+# Part 1
+
+```{r}
+paste0(names(views), collapse = " + ") # HHNumber + HoursTV + DetergentPur + Gender + Income + AwareCSG
+```
+
+```{r}
+
+q1i.col2 <- glm(AwareCSG ~  HoursTV, family = binomial(link = "logit"), data = views)
+q1i.col2.summary <- summary(q1i.col2); q1i.col2.summary$coefficients
+#               Estimate Std. Error   z value     Pr(>|z|)
+#(Intercept) -1.78006428 0.32995509 -5.394868 6.857378e-08
+#HoursTV      0.08212197 0.01466808  5.598686 2.159822e-08
+q1i.col3 <- glm(AwareCSG ~  DetergentPur, family = binomial(link = "logit"), data = views)
+q1i.col3.summary <- summary(q1i.col3); q1i.col3.summary$coefficients
+#                Estimate Std. Error    z value  Pr(>|z|)
+#(Intercept)  -0.08413269 0.17509974 -0.4804844 0.6308830
+#DetergentPur  0.02719424 0.04865845  0.5588802 0.5762435
+q1i.col4 <- glm(AwareCSG ~  as.factor(Gender), family = binomial(link = "logit"), data = views)
+q1i.col4.summary <- summary(q1i.col4); q1i.col4.summary$coefficients
+#                        Estimate Std. Error       z value Pr(>|z|)
+#(Intercept)        -2.025748e-15  0.1264911 -1.601494e-14        1
+#as.factor(Gender)1  4.011775e-15  0.1788854  2.242651e-14        1
+q1i.col5 <- glm(AwareCSG ~  Income, family = binomial(link = "logit"), data = views)
+q1i.col5.summary <- summary(q1i.col5); q1i.col5.summary$coefficients
+#                 Estimate   Std. Error    z value  Pr(>|z|)
+#(Intercept)  1.216290e-02 0.0955763115  0.1272585 0.8987358
+#Income      -1.957972e-05 0.0000543336 -0.3603611 0.7185771
+
+
+q1all <- glm(AwareCSG ~  HoursTV + DetergentPur + Gender + Income, 
+  family = binomial(link = "logit"), data = views)
+q1all.summary <- summary(q1all); q1all.summary$coefficients
+#                  Estimate   Std. Error   z value     Pr(>|z|)
+#(Intercept)  -4.1019947073 4.836342e-01 -8.481605 2.221078e-17
+#HoursTV       0.3531541866 3.716322e-02  9.502787 2.043471e-21
+#DetergentPur -0.9967498367 1.200227e-01 -8.304675 1.000932e-16
+#Gender       -0.4791504419 2.112639e-01 -2.268018 2.332809e-02
+#Income       -0.0004121295 7.106113e-05 -5.799648 6.645422e-09
+
+q1c <- data.frame( HHNumber = c("q1d"), HoursTV=c(20), 
+  DetergentPur=c(8), Gender=c(0), Income=c(60)  )
+CIpred.q1c <- predict(q1all, newdata = q1c,  type = "response"); 
+CIpred.q1c # 0.006447225
+
+q1all.summary
+#   Null deviance: 693.15  on 499  degrees of freedom
+#Residual deviance: 564.84  on 495  degrees of freedom
+
+#As we can see at the bottom of the full-model summary,
+Ftest = (1-pchisq(693.15-564.84,499-495));Ftest # ~ 0 
+
+
+
+
+
+
+q1c <- data.frame( HHNumber = c("q1d"), HoursTV=c(20), DetergentPur=c(8), Gender=c(0), Income=c(60)  )
+CIpred.q1c <- predict(q1all, newdata = q1c,  type = "response"); CIpred.q1c # 0.006447225
+
+q1d <- data.frame( HHNumber = rep(c("q1d"),11), HoursTV= seq(0,50,5), DetergentPur= rep(c(8),11), Gender= rep(c(0),11), Income = rep(Income=c(60),11)  )
+
+q1d$pred_1d <- round(predict(q1all, newdata = q1d,  type = "response") , digits = 2)
+
+q1d %>% ggplot(aes(x=HoursTV,y=pred_1d)) + geom_point() + geom_abline(slope = 0, intercept = 0.5, col = "red") + stat_smooth(method = "loess", col = "blue") + ylab("Fitted Values") + ggtitle("Change in Probabilities per 5 hour change in HoursTV")
+
+# Get the fitted default probability
+views$predicted_q1ALL <- predict(q1all, type = "response")
+ROCALL1all <- roc(AwareCSG ~ predicted_q1ALL, data = views) # Calculate the ROC curve
+plot(ROCALL1all)
+#Data: predicted_q1ALL in 250 controls (AwareCSG 0) < 250 cases (AwareCSG 1).
+#Area under the curve: 0.7766
+
+views$AwareCSG %>% str
+
+library("ResourceSelection")
+hoslem.test(views$AwareCSG , views$predicted_q1ALL)
+```
+
+```{r}
+q1full.int <- glm(AwareCSG ~  HoursTV + DetergentPur + Gender + Income 
+  + HoursTV*Gender , family = binomial(link = "logit"), data = views)
+q1full.int.summary <- summary(q1full.int); q1full.int.summary$coefficients
+#                      Estimate       Std. Error      z value                    Pr(>|z|)
+#(Intercept)    -3.231890532898 0.55873061021974 -5.784344859 0.0000000072795468903305581
+#HoursTV         0.311369072746 0.03950920798393  7.880924185 0.0000000000000032496844740
+#DetergentPur   -0.990767510674 0.12109629359348 -8.181650167 0.0000000000000002799828999
+#Gender         -2.530082223654 0.77405994389859 -3.268586940 0.0010808596544437071122757
+#Income         -0.000415596951 0.00007253816788 -5.729355499 0.0000000100812923840726538
+#HoursTV:Gender  0.093016885269 0.03354975924882  2.772505298 0.0055626613883063341300939
+
+# Get the fitted default probability
+views$predicted_q1full.int   <- predict(q1full.int, type = "response")
+ROCfull.int <- roc(AwareCSG ~ predicted_q1full.int, data = views) # Calculate the ROC curve
+plot(ROCfull.int) #0.777648
+q1g <- data.frame( HHNumber = c("q1d","q1d"), HoursTV=c(20,20), DetergentPur=c(8,8), 
+  Gender=c(0,1), Income=c(60)  )
+CIpred.q1g <- predict(q1full.int, newdata = q1g,  type = "response"); CIpred.q1g 
+#             1              2 
+#0.006994688203 0.003592422942 
+hoslem.test(views$AwareCSG , views$predicted_q1full.int)
+
+
+```
+
+```{r}
+
+q1full.test<- glm(AwareCSG ~  HoursTV + DetergentPur + Gender + Income 
+  + HoursTV*Gender + HoursTV*DetergentPur + HoursTV*Income    , family = binomial(link = "logit"), data = views)
+q1full.test.summary <- summary(q1full.test); q1full.test.summary$coefficients
+#                      Estimate       Std. Error      z value                    Pr(>|z|)
+#(Intercept)    -3.231890532898 0.55873061021974 -5.784344859 0.0000000072795468903305581
+#HoursTV         0.311369072746 0.03950920798393  7.880924185 0.0000000000000032496844740
+#DetergentPur   -0.990767510674 0.12109629359348 -8.181650167 0.0000000000000002799828999
+#Gender         -2.530082223654 0.77405994389859 -3.268586940 0.0010808596544437071122757
+#Income         -0.000415596951 0.00007253816788 -5.729355499 0.0000000100812923840726538
+#HoursTV:Gender  0.093016885269 0.03354975924882  2.772505298 0.0055626613883063341300939
+
+# Get the fitted default probability
+views$predicted_q1full.test   <- predict(q1full.test, type = "response")
+ROCfull.int <- roc(AwareCSG ~ predicted_q1full.test, data = views) # Calculate the ROC curve
+plot(ROCfull.int) #0.777648
+
+#0.006994688203 0.003592422942 
+hoslem.test(views$AwareCSG , views$predicted_q1full.test)
+```
+
+
+# Part 2
+
+Sophisticated_Imputation_Survey_Data.xlsx
+
+```{r}
+survey <- read_excel("Sophisticated_Imputation_Survey_Data.xlsx")
+survey %>% names
+
+lm.k123 <- lm(Q10 ~ Q1 + Q2 + Q3 + Q4 + Q5 + Q6 + Q7 + Q8 + Q9, data = survey)
+lm.k123.summary <- summary(lm.k123)
+```
+
+```{r}
+
+
+
+```
+
+
+```{r}
+
+survey.knn <- kmeans(survey[,1:9],3, nstart = 20)
+survey$k <- as.factor(survey.knn$cluster)
+survey.knn
+
+survey.k1 <- survey[which(survey$k == unique(survey$k)[3]), ]# k = 1
+survey.k2 <- survey[which(survey$k == unique(survey$k)[2]), ]# k = 2
+survey.k3 <- survey[which(survey$k == unique(survey$k)[1]), ] # k = 3
+
+lm.k1 <- lm(Q10 ~ Q1 + Q2 + Q3 + Q4 + Q5 + Q6 + Q7 + Q8 + Q9, data = survey.k1)
+lm.k2 <- lm(Q10 ~ Q1 + Q2 + Q3 + Q4 + Q5 + Q6 + Q7 + Q8 + Q9, data = survey.k2)
+lm.k3 <- lm(Q10 ~ Q1 + Q2 + Q3 + Q4 + Q5 + Q6 + Q7 + Q8 + Q9, data = survey.k3)
+
+lm.k1.summary <- summary(lm.k1)
+lm.k2.summary <- summary(lm.k2)
+lm.k3.summary <- summary(lm.k3)
+
+
+
+survey %>%
+  ggplot(aes(x=k, y = Q10, fill=k)) +
+  geom_boxplot() +
+  theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q10 response by K-cluster")
+
+
+lm.k1.summary
+#Coefficients:
+#               Estimate  Std. Error  t value  Pr(>|t|)   
+#(Intercept) -0.97232601  2.21090407 -0.43979 0.6641965   
+#Q1          -0.29354848  0.17074427 -1.71923 0.0990047 . 
+#Q2          -0.03301517  0.15237143 -0.21668 0.8303715   
+#Q3           0.02691176  0.17031555  0.15801 0.8758271   
+#Q4           0.50079351  0.15043799  3.32890 0.0029196 **
+#Q5          -0.09321060  0.16179697 -0.57610 0.5701452   
+#Q6           0.12181888  0.13680849  0.89043 0.3824531   
+#Q7           0.20466908  0.16187529  1.26436 0.2187630   
+#Q8           0.42525099  0.12692684  3.35036 0.0027722 **
+#Q9           0.39973403  0.15308805  2.61114 0.0156153 * 
+
+lm.k2.summary
+#Coefficients:
+#               Estimate  Std. Error  t value    Pr(>|t|)    
+#(Intercept) -0.38835297  1.47882225 -0.26261   0.7946465    
+#Q1          -0.23992022  0.14510348 -1.65344   0.1086692    
+#Q2          -0.16054460  0.10408106 -1.54250   0.1334369    
+#Q3           0.28423999  0.12129871  2.34331   0.0259347 *  
+#Q4           0.36983964  0.12194527  3.03283   0.0049618 ** 
+#Q5          -0.05629110  0.10519427 -0.53512   0.5965145    
+#Q6          -0.04701023  0.12592737 -0.37331   0.7115411    
+#Q7           0.13152868  0.12003578  1.09575   0.2819090    
+#Q8           0.44075924  0.09063203  4.86317 0.000034276 ***
+#Q9           0.47827570  0.10234261  4.67328 0.000058521 ***
+
+lm.k3.summary
+#Coefficients:
+#               Estimate  Std. Error  t value       Pr(>|t|)    
+#(Intercept) -2.17238356  1.70374151 -1.27507       0.210234    
+#Q1          -0.05157642  0.17292663 -0.29826       0.767176    
+#Q2          -0.16438695  0.12253447 -1.34156       0.187916    
+#Q3           0.09969354  0.13160831  0.75750       0.453547    
+#Q4           0.30755052  0.15433323  1.99277       0.053702 .  
+#Q5           0.03066770  0.10771311  0.28472       0.777449    
+#Q6           0.03261745  0.12466946  0.26163       0.795057    
+#Q7           0.23875627  0.09173707  2.60261       0.013232 *  
+#Q8           0.26729337  0.11858162  2.25409       0.030201 *  
+#Q9           0.64717256  0.09384046  6.89652 0.000000038955 ***
+
+#Cluster means:
+#           Q1          Q2          Q3          Q4          Q5          Q6          Q7          Q8          Q9
+#1 3.787878788 4.030303030 4.393939394 4.606060606 4.515151515 4.848484848 5.030303030 5.787878788 5.939393939
+#2 3.250000000 3.125000000 3.650000000 4.000000000 5.750000000 5.925000000 6.200000000 6.625000000 6.575000000
+#3 4.851063830 5.127659574 5.425531915 5.617021277 5.659574468 5.936170213 6.446808511 6.446808511 6.978723404
+
+lm.k123.summary
+#Coefficients:
+#               Estimate  Std. Error  t value               Pr(>|t|)    
+#(Intercept) -0.47266152  0.54451837 -0.86804             0.38726447    
+#Q1          -0.27985298  0.07810947 -3.58283             0.00050782 ***
+#Q2          -0.18364107  0.06366149 -2.88465             0.00471579 ** 
+#Q3           0.12684822  0.06562386  1.93296             0.05581198 .  
+#Q4           0.35755652  0.07151251  4.99992        0.0000021836495 ***
+#Q5          -0.05647816  0.05986228 -0.94347             0.34750913    
+#Q6           0.05442111  0.05818426  0.93532             0.35167038    
+#Q7           0.16172408  0.05205190  3.10698             0.00240523 ** 
+#Q8           0.39331213  0.05917054  6.64709        0.0000000011938 ***
+#Q9           0.53427351  0.05432477  9.83481 < 0.000000000000000222 ***
+
+
+lm.k1.summary
+#Coefficients:
+#               Estimate  Std. Error  t value  Pr(>|t|)   
+#(Intercept) -0.97232601  2.21090407 -0.43979 0.6641965   
+#Q1          -0.29354848  0.17074427 -1.71923 0.0990047 . 
+#Q2          -0.03301517  0.15237143 -0.21668 0.8303715   
+#Q3           0.02691176  0.17031555  0.15801 0.8758271   
+#Q4           0.50079351  0.15043799  3.32890 0.0029196 **
+#Q5          -0.09321060  0.16179697 -0.57610 0.5701452   
+#Q6           0.12181888  0.13680849  0.89043 0.3824531   
+#Q7           0.20466908  0.16187529  1.26436 0.2187630   
+#Q8           0.42525099  0.12692684  3.35036 0.0027722 **
+#Q9           0.39973403  0.15308805  2.61114 0.0156153 * 
+
+lm.k2.summary
+#Coefficients:
+#               Estimate  Std. Error  t value    Pr(>|t|)    
+#(Intercept) -0.38835297  1.47882225 -0.26261   0.7946465    
+#Q1          -0.23992022  0.14510348 -1.65344   0.1086692    
+#Q2          -0.16054460  0.10408106 -1.54250   0.1334369    
+#Q3           0.28423999  0.12129871  2.34331   0.0259347 *  
+#Q4           0.36983964  0.12194527  3.03283   0.0049618 ** 
+#Q5          -0.05629110  0.10519427 -0.53512   0.5965145    
+#Q6          -0.04701023  0.12592737 -0.37331   0.7115411    
+#Q7           0.13152868  0.12003578  1.09575   0.2819090    
+#Q8           0.44075924  0.09063203  4.86317 0.000034276 ***
+#Q9           0.47827570  0.10234261  4.67328 0.000058521 ***
+
+lm.k3.summary
+#Coefficients:
+#               Estimate  Std. Error  t value       Pr(>|t|)    
+#(Intercept) -2.17238356  1.70374151 -1.27507       0.210234    
+#Q1          -0.05157642  0.17292663 -0.29826       0.767176    
+#Q2          -0.16438695  0.12253447 -1.34156       0.187916    
+#Q3           0.09969354  0.13160831  0.75750       0.453547    
+#Q4           0.30755052  0.15433323  1.99277       0.053702 .  
+#Q5           0.03066770  0.10771311  0.28472       0.777449    
+#Q6           0.03261745  0.12466946  0.26163       0.795057    
+#Q7           0.23875627  0.09173707  2.60261       0.013232 *  
+#Q8           0.26729337  0.11858162  2.25409       0.030201 *  
+#Q9           0.64717256  0.09384046  6.89652 0.000000038955 ***
+
+# Create Dataframe for results
+paste(paste0(names(survey)[1:(len(names(survey))-2)],"=c(0,0,0,0)"), collapse = " , ")
+q2.lms <- data.frame(Q1=c(0,0,0,0) , Q2=c(0,0,0,0) , Q3=c(0,0,0,0) , Q4=c(0,0,0,0) , Q5=c(0,0,0,0) , 
+  Q6=c(0,0,0,0) , Q7=c(0,0,0,0) , Q8=c(0,0,0,0) , Q9=c(0,0,0,0) )
+rownames(q2.lms) <- c("K1","K2","K3","All Clusters")
+# Input t-values
+q2.lms[1,] <- lm.k1.summary$coefficients[-c(1),4]; q2.lms[2,] <- lm.k2.summary$coefficients[-c(1),4]
+q2.lms[3,] <- lm.k3.summary$coefficients[-c(1),4]; q2.lms[4,] <- lm.k123.summary$coefficients[-c(1),4]
+# Extract data
+WriteXLS(q2.lms, ExcelFileName = "Q2tvals.xls")
+
+
+
+
+
+
+```
+
+```{r}
+gg.Q10 <- survey %>% ggplot(aes(x=k, y = Q10, fill=k)) +
+  geom_jitter(aes(colour = k)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q10 response by K-cluster")
+gg.Q10
+```
+
+
+```{r}
+gg.Q1 <- survey %>% ggplot(aes(x=k, y = Q1, fill=k)) +
+  geom_jitter(aes(colour = k)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q1 response by K-cluster")
+
+gg.Q2 <- survey %>% ggplot(aes(x=k, y = Q2, fill=k)) +
+  geom_jitter(aes(colour = k)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q2 response by K-cluster")
+
+gg.Q3 <- survey %>% ggplot(aes(x=k, y = Q3, fill=k)) +
+  geom_jitter(aes(colour = k)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q3 response by K-cluster")
+
+gg.Q4 <- survey %>% ggplot(aes(x=k, y = Q4, fill=k)) +
+  geom_jitter(aes(colour = k)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q4 response by K-cluster")
+
+gg.Q5 <- survey %>% ggplot(aes(x=k, y = Q5, fill=k)) +
+  geom_jitter(aes(colour = k)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q5 response by K-cluster")
+
+gg.Q6 <- survey %>% ggplot(aes(x=k, y = Q6, fill=k)) +
+  geom_jitter(aes(colour = k)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q6 response by K-cluster")
+
+gg.Q7 <- survey %>% ggplot(aes(x=k, y = Q7, fill=k)) +
+  geom_jitter(aes(colour = k)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q7 response by K-cluster")
+
+gg.Q8 <- survey %>% ggplot(aes(x=k, y = Q8, fill=k)) +
+  geom_jitter(aes(colour = k)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q8 response by K-cluster")
+
+gg.Q9 <- survey %>% ggplot(aes(x=k, y = Q9, fill=k)) +
+  geom_jitter(aes(colour = k)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q9 response by K-cluster")
+
+grid.arrange(gg.Q1, gg.Q3,gg.Q7, ncol=3)
+
+gg.Q5
+
+grid.arrange(gg.Q4, gg.Q8,gg.Q9, ncol=3)
+
+# Calculate correlations with response, Q10
+survey.k1.cor <- as.data.frame(cor(survey.k1[,-c(11)])); survey.k2.cor <- as.data.frame(cor(survey.k2[,-c(11)]))
+survey.k3.cor <- as.data.frame(cor(survey.k3[,-c(11)])); survey.k123.cor <- as.data.frame(cor(survey[,-c(11)]))
+# Create Dataframe for results
+q2.cors <- data.frame(Q1=c(0,0,0,0) , Q2=c(0,0,0,0) , Q3=c(0,0,0,0) , Q4=c(0,0,0,0) , Q5=c(0,0,0,0) , 
+  Q6=c(0,0,0,0) , Q7=c(0,0,0,0) , Q8=c(0,0,0,0) , Q9=c(0,0,0,0) )
+rownames(q2.cors) <- c("K1","K2","K3","All Clusters")
+# Input correlations
+q2.cors[1,] <- survey.k1.cor[10,1:9]; q2.cors[2,] <- survey.k2.cor[10,1:9]; 
+q2.cors[3,] <- survey.k3.cor[10,1:9]; q2.cors[4,] <- survey.k123.cor[10,1:9]
+# Extract data
+WriteXLS(q2.cors, ExcelFileName = "Q2cors.xls")
+
+
+
+
+# survey.k1.cor <-survey.k1.cor[10,]
+
+
+#%>% corrplot
+
+```
+
+# Part 3
+
+```{r }
+annalect <- annalectA4
+
+100*sort(table(annalect$creative_identifier), decreasing = TRUE)/nrow(annalect)
+
+
+```
+
+
+```{r}
+
+paste0(names(annalect), collapse = " + ") 
+
+# ID + Impression Date + Engagement + creative_identifier + creative_name + creative_description + Impression week day + impression_month + Impression_day_of_month + Impression Hour of Day
+
+# Y: 3, X: 7:10
+
+annalect.t <- annalect[,c(3,7:10)]
+
+annalect.t$`Impression week day` <- as.factor(  annalect.t$`Impression week day`  ) 
+annalect.t$impression_month <- as.factor( annalect.t$impression_month )
+annalect.t$Impression_day_of_month <- as.factor( annalect.t$Impression_day_of_month )
+annalect.t$`Impression Hour of Day` <- as.factor( annalect.t$`Impression Hour of Day` )
+
+X.t <- as.matrix( model.matrix(Engagement~., annalect.t)[,-1] )
+Y.t <-  as.matrix( annalect.t$Engagement )
+
+glm.3a  <- glm(Engagement ~ ., family = binomial(link = "logit"), data = annalect.t)
+glm.3a.summary <- summary(glm.3a); 
+
+glm.3a.summary
+
+
+annalect
+
+```
+
+
+```{r}
+# Get the fitted default probability
+
+annalect.t$predicted_q3a <- predict(glm.3a, type = "response")
+ROC3a <- roc(Engagement ~ predicted_q3a, data = annalect.t) # Calculate the ROC curve
+plot(ROC3a) # 0.6516352
+
+ROC3a
+```
+
+```{r}
+# By Hour of Day only
+glm.3a.hday  <- glm(Engagement ~ `Impression Hour of Day` , family = binomial(link = "logit"), data = annalect.t)
+glm.3a.hday.summary <- summary(glm.3a.hday); 
+
+glm.3a.hday.summary$coefficients
+
+glm.3a.hday.summary$coefficients
+
+coef(glm.3a.hday.summary)
+
+df.hours <- data.frame(Hours=c(0:23), Pvalues= coef(glm.3a.hday.summary)[,4], Coefficients=coef(glm.3a.hday.summary)[,1])
+gg.3a.hours.pval <- df.hours %>% ggplot(aes(x=Hours , y= Pvalues )) + geom_point() + geom_abline(slope = 0, intercept = 0.05, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("P-values by hour of day")
+  
+gg.3a.hours.coef <- df.hours %>% ggplot(aes(x=Hours , y= Coefficients )) + geom_point() + geom_abline(slope = 0, intercept = 0, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("Coefficients by hour of day")
+
+gg.3a.hours.coef
+
+grid.arrange(gg.3a.hours.pval, gg.3a.hours.coef, ncol=2)
+
+# + geom_abline(slope = 0, intercept = 0.5, col = "red") + stat_smooth(method = "loess", col = "blue") + ylab("Fitted Values") + ggtitle("Change in Probabilities per 5 hour change in HoursTV")
+```
+
+
+```{r}
+
+annalect.t_dec <-  annalect.t[which(annalect.t$impression_month != 1),]
+annalect.t_jan <-  annalect.t[which(annalect.t$impression_month == 1),]
+
+# By Hour of Day - January
+glm.3a.hday.jan  <- glm(Engagement ~ `Impression Hour of Day` , family = binomial(link = "logit"), data = annalect.t_jan)
+glm.3a.hday.summary.jan <- summary(glm.3a.hday.jan); 
+df.hours.jan <- data.frame(Hours=c(0:23), Pvalues= coef(glm.3a.hday.summary.jan)[,4], Coefficients=coef(glm.3a.hday.summary.jan)[,1])
+
+gg.3a.hours.jan.pval <- df.hours.jan %>% ggplot(aes(x=Hours , y= Pvalues )) + geom_point() + geom_abline(slope = 0, intercept = 0.05, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("January: P-values by hour of day")
+gg.3a.hours.jan.coef <- df.hours.jan %>% ggplot(aes(x=Hours , y= Coefficients )) + geom_point() + geom_abline(slope = 0, intercept = 0, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("January: Coefficients by hour of day")
+
+# By Hour of Day - December
+glm.3a.hday.dec  <- glm(Engagement ~ `Impression Hour of Day` , family = binomial(link = "logit"), data = annalect.t_dec)
+glm.3a.hday.summary.dec <- summary(glm.3a.hday.dec); 
+df.hours.dec <- data.frame(Hours=c(0:23), Pvalues= coef(glm.3a.hday.summary.dec)[,4], Coefficients=coef(glm.3a.hday.summary.dec)[,1])
+
+gg.3a.hours.dec.pval <- df.hours.dec %>% ggplot(aes(x=Hours , y= Pvalues )) + geom_point() + geom_abline(slope = 0, intercept = 0.05, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("December: P-values by hour of day")
+gg.3a.hours.dec.coef <- df.hours.dec %>% ggplot(aes(x=Hours , y= Coefficients )) + geom_point() + geom_abline(slope = 0, intercept = 0, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("December: Coefficients by hour of day")
+
+
+
+grid.arrange(gg.3a.hours.dec.pval, gg.3a.hours.jan.pval,gg.3a.hours.dec.coef,  gg.3a.hours.jan.coef, ncol=2)
+
+
+```
+
+```{r}
+# By DOW - January
+
+
+glm.3a.dow.jan  <- glm(Engagement ~ `Impression week day`, family = binomial(link = "logit"), data = annalect.t_jan)
+glm.3a.dow.summary.jan <- summary(glm.3a.dow.jan); 
+
+#annalect.t_jan$`Impression week day` %>% unique %>% sort #%>% length
+
+df.dow.jan <- data.frame(Day_of_week=c(1:7), Pvalues= coef(glm.3a.dow.summary.jan)[,4], Coefficients=coef(glm.3a.dow.summary.jan)[,1])
+
+gg.3a.dow.jan.pval <- df.dow.jan %>% ggplot(aes(x=Day_of_week , y= Pvalues )) + geom_point() + geom_abline(slope = 0, intercept = 0.05, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("January: P-values by Day of Week")
+gg.3a.dow.jan.coef <- df.dow.jan %>% ggplot(aes(x=Day_of_week , y= Coefficients )) + geom_point() + geom_abline(slope = 0, intercept = 0, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("January: Coefficients by Day of Week")
+
+# By DOW - December
+glm.3a.dow.dec  <- glm(Engagement ~ `Impression week day`, family = binomial(link = "logit"), data = annalect.t_dec)
+glm.3a.dow.summary.dec <- summary(glm.3a.dow.dec); 
+df.dow.dec <- data.frame(Day_of_week=c(1:7), Pvalues= coef(glm.3a.dow.summary.dec)[,4], Coefficients=coef(glm.3a.dow.summary.dec)[,1])
+
+gg.3a.dow.dec.pval <- df.dow.dec %>% ggplot(aes(x=Day_of_week , y= Pvalues )) + geom_point() + geom_abline(slope = 0, intercept = 0.05, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("December: P-values by Day of Week")
+gg.3a.dow.dec.coef <- df.dow.dec %>% ggplot(aes(x=Day_of_week , y= Coefficients )) + geom_point() + geom_abline(slope = 0, intercept = 0, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("December: Coefficients by Day of Week")
+
+grid.arrange(gg.3a.dow.dec.pval, gg.3a.dow.jan.pval,gg.3a.dow.dec.coef,  gg.3a.dow.jan.coef, ncol=2)
+
+
+
+```
+
+
+```{r}
+# By DOM - January
+
+
+glm.3a.dom.jan  <- glm(Engagement ~ Impression_day_of_month , family = binomial(link = "logit"), data = annalect.t_jan)
+glm.3a.dom.summary.jan <- summary(glm.3a.dom.jan); 
+
+
+
+# annalect.t_jan$Impression_day_of_month %>% unique %>% sort 
+
+df.dom.jan <- data.frame(Day_of_month=c(1:31), Pvalues= coef(glm.3a.dom.summary.jan)[,4], Coefficients=coef(glm.3a.dom.summary.jan)[,1])
+
+gg.3a.dom.jan.pval <- df.dom.jan %>% ggplot(aes(x=Day_of_month , y= Pvalues )) + geom_point() + geom_abline(slope = 0, intercept = 0.05, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("January: P-values by Day of Month")
+gg.3a.dom.jan.coef <- df.dom.jan %>% ggplot(aes(x=Day_of_month , y= Coefficients )) + geom_point() + geom_abline(slope = 0, intercept = 0, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("January: Coefficients by Day of Month")
+
+# By DOM - December
+glm.3a.dom.dec  <- glm(Engagement ~ Impression_day_of_month , family = binomial(link = "logit"), data = annalect.t_dec)
+glm.3a.dom.summary.dec <- summary(glm.3a.dom.dec); 
+df.dom.dec <- data.frame(Day_of_month=c(1:31), Pvalues= coef(glm.3a.dom.summary.dec)[,4], Coefficients=coef(glm.3a.dom.summary.dec)[,1])
+
+gg.3a.dom.dec.pval <- df.dom.dec %>% ggplot(aes(x=Day_of_month , y= Pvalues )) + geom_point() + geom_abline(slope = 0, intercept = 0.05, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("December: P-values by Day of Month")
+gg.3a.dom.dec.coef <- df.dom.dec %>% ggplot(aes(x=Day_of_month , y= Coefficients )) + geom_point() + geom_abline(slope = 0, intercept = 0, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("December: Coefficients by Day of Month")
+
+grid.arrange(gg.3a.dom.dec.pval, gg.3a.dom.jan.pval,gg.3a.dom.dec.coef,  gg.3a.dom.jan.coef, ncol=2)
+
+df.dom.jan
+
+glm.3a.dom.summary.jan
+
+
+```
+
+```{r}
+# By Month 
+glm.3a.M.lm  <- glm(Engagement ~ impression_month,family = binomial(link = "logit"), data = annalect.t)
+glm.3a.M.summary<- summary(glm.3a.M.lm); 
+#annalect.t$impression_month %>% unique %>% sort
+df.M <- data.frame(Month=c(12), Pvalues= coef(glm.3a.M.summary)[,4], Coefficients=coef(glm.3a.M.summary)[,1])
+df.M
+```
+
+
+```{r}
+
+
+glm.3a.M.summary
+
+coef(glm.3a.M.summary)[,4]
+
+
+gg.3a.M.pval <- df.M %>% ggplot(aes(x=Month , y= Pvalues )) + geom_point() + geom_abline(slope = 0, intercept = 0.05, col = "red") + stat_smooth(method = "loess", col = "blue") + ggtitle("January: P-values by Month")
+gg.3a.M.coef <- df.M %>% ggplot(aes(x=Month , y= Coefficients )) + geom_point() + geom_abline(slope = 0, intercept = 0, col = "red") + geom_smooth() + ggtitle("January: Coefficients by Month")
+
+
+
+grid.arrange(gg.3a.M.pval,gg.3a.M.coef, ncol=2)
+
+df.M
+
+
+
+```
+
+
+
+
+```{r}
+# By Day of Month - December
+
+
+glm.3a.dm.dec  <- glm(Engagement ~ Impression_day_of_month , family = binomial(link = "logit"), data = annalect.t_dec)
+glm.3a.dm.summary.dec <- summary(glm.3a.dm.dec); 
+
+
+
+plot(x=c(0:30), y= coef(glm.3a.dm.summary.dec)[,4])
+
+plot(x=c(0:30), y= coef(glm.3a.dm.summary.dec)[,1], xlab = " Day of Month", ylab = "coefficient", main = "Engagement vs. Day of Month (December)")
+
+
+
+# By Day of Month - January
+
+glm.3a.dm.jan  <- glm(Engagement ~ Impression_day_of_month , family = binomial(link = "logit"), data = annalect.t_jan)
+glm.3a.dm.summary.jan <- summary(glm.3a.dm.jan); 
+
+
+
+plot(x=c(0:30), y= coef(glm.3a.dm.summary.jan)[,4])
+
+plot(x=c(0:30), y= coef(glm.3a.dm.summary.jan)[,1], xlab = " Day of Month", ylab = "coefficient", main = "Engagement vs. Day of Month (January)")
+
+
+
+# Weekday- December
+
+glm.3a.wk.dec  <- glm(Engagement ~ as.factor(Impression.week.day) , family = binomial(link = "logit"), data = annalect.t_dec)
+glm.3a.wk.summary.dec <- summary(glm.3a.wk.dec); 
+
+
+
+plot(x=c(0:6), y= coef(glm.3a.wk.summary.dec)[,4])
+
+plot(x=c(0:6), y= coef(glm.3a.wk.summary.dec)[,1], xlab = "Weekday", ylab = "coefficient", main = "Engagement vs. Weekday (December)")
+
+# Weekday- January
+
+glm.3a.wk.jan  <- glm(Engagement ~ as.factor(Impression.week.day) , family = binomial(link = "logit"), data = annalect.t_jan)
+glm.3a.wk.summary.jan <- summary(glm.3a.wk.jan); 
+
+
+
+plot(x=c(0:6), y= coef(glm.3a.wk.summary.jan)[,4])
+
+plot(x=c(0:6), y= coef(glm.3a.wk.summary.jan)[,1], xlab = "Weekday", ylab = "coefficient", main = "Engagement vs. Weekday (January)")
+
+
+
+
+```
+
+
+```{r}
+# By Week Day only
+glm.3a.wday  <- glm(Engagement ~ `Impression week day` , family = binomial(link = "logit"), data = annalect.t)
+glm.3a.wday.summary <- summary(glm.3a.wday); 
+
+glm.3a.wday.summary
+```
+
+```{r}
+
+annalect.t$impression_month <- as.factor( annalect.t$impression_month )
+annalect.t$Impression_day_of_month <- as.factor( annalect.t$Impression_day_of_month )
+
+
+# By Hour of Day only
+glm.3a.test  <- glm(Engagement ~ Impression_day_of_month  , family = binomial(link = "logit"), data = annalect.t)
+glm.3a.test.summary <- summary(glm.3a.test); 
+
+glm.3a.test.summary
+
+
+
+```
+
+```{r}
+# By Week Day only
+glm.3a.wday  <- glm(Engagement ~ `Impression week day` , family = binomial(link = "logit"), data = annalect.t)
+glm.3a.wday.summary <- summary(glm.3a.wday); 
+
+glm.3a.wday.summary
+```
+
+
+
+```{r}
+annalect.c <- annalect[,c(3:6)]
+
+# Step 1 eliminate NA
+
+annalect.c$creative_identifier %>% table
+annalect.c <- annalect.c[-c(which(annalect.c$creative_identifier < 0)),]
+
+annalect$creative_identifier %>% unique %>% len # 75
+annalect$creative_name %>% unique  %>% len # 66
+
+
+
+```
+
+
+
+```{r}
+which( 100*sort((table(annalect.c$creative_name)/nrow(annalect.c)), decreasing = TRUE) > 5)
+cID2  <- c("Secure DMP", "Direct" , "Psearch_Other" , "Secure_DMP_Pixel" , "Email_Past" , "Guest Sale" ,  "Osearch_Google" )
+cID2.f <-  function(i){ which(annalect.c$creative_name == cID2[i]) };cID2.index <- lapply(1:length(cID2), cID2.f) %>% unlist %>% as.vector
+annalect.c$creativenames.comps <- annalect.c$creative_name; annalect.c[-c(cID2.index),8] <- rep("Baseline",(nrow(annalect.c)-length(cID2.index))) 
+100*sort((table(annalect.c$creativenames.comps)/nrow(annalect.c)),decreasing = TRUE); 
+annalect.c$creativenames.comps <- annalect.c$creativenames.comps  %>% as.factor
+```
+
+```{r}
+# Compare creatives against baseline
+glm.3bi2  <- glm(Engagement ~ creativenames.comps  , family = binomial(link = "logit"), data = annalect.c)
+glm.3bi2.summary <- summary(glm.3bi2);  glm.3bi2.summary
+#                                     Estimate Std. Error z value Pr(>|z|)    
+#(Intercept)                          -0.36308    0.01711 -21.219   <2e-16 ***
+#creativenames.compsDirect            20.92915  155.73341   0.134    0.893    
+#creativenames.compsOsearch_Google    20.92915  303.58264   0.069    0.945    
+#creativenames.compsPsearch_Other     20.92915  276.06149   0.076    0.940    
+#creativenames.compsSecure DMP       -20.20299  135.00847  -0.150    0.881    
+#creativenames.compsSecure_DMP_Pixel -20.20299  277.40978  -0.073    0.942 
+```
+
+
+```{r}
+
+# Get the fitted default probability
+annalect.c$p_3bi   <- predict(glm.3bi2, type = "response")
+ROC3bi <- roc(Engagement ~ p_3bi, data = annalect.c) # Calculate the ROC curve
+plot(ROC3bi) # 0.9691
+
+#0.006994688203 0.003592422942 
+hoslem.test(annalect.c$Engagement , annalect.c$p_3bi ) #NA
+
+
+```
+
+```{r}
+annalect.c$creative_description  %>% unique
+```
+
+
+
+```{r}
+annalect.c$email <- (annalect.c$creative_description == "Email" )  %>% as.numeric 
+annalect.c$email <- annalect.c$email  %>% as.factor
+glm.3bii  <- glm(Engagement ~ email, family = binomial(link = "logit"), data = annalect.c)
+glm.3bii.summary <- summary(glm.3bii);  glm.3bii.summary
+#             Estimate Std. Error z value Pr(>|z|)    
+#(Intercept) -0.326107   0.008969 -36.361   <2e-16 ***
+#email1      17.892176  56.609362   0.316    0.752    
+```
+
+
+
+
+
+
+```{r, results='hide'}
+
+
+# Get the fitted default probability
+annalect.c$p_3bii   <- predict(glm.3bii, type = "response")
+ROC3bii <- roc(Engagement ~ p_3bii, data = annalect.c) # Calculate the ROC curve
+plot(ROC3bii) #0.5929
+
+#0.006994688203 0.003592422942 
+hoslem.test(annalect.c$Engagement , annalect.c$p_3bii ) # NA
+
+
+plot(x=annalect.c$p_3bi,y=annalect.c$p_3bii)
+
+ annalect.c %>% ggplot(aes(x=p_3bi, y = p_3bii, fill=email)) +
+  geom_jitter(aes(colour = email)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q10 response by K-cluster")
+
+```
+
+
+```{r}
+annalect.c$base0 <- (annalect.c$creativenames.comps != (annalect.c$creativenames.comps %>% unique)[1]) %>% as.numeric 
+glm.test <- glm(Engagement ~ email + base0  , family = binomial(link = "logit"), data = annalect.c)
+glm.test.summary <- summary(glm.test);  glm.test.summary
+#             Estimate Std. Error z value Pr(>|z|)    
+#(Intercept)  -2.21700    0.03497 -63.404   <2e-16 ***
+#email1       19.78306   56.60937   0.349    0.727    
+#base0         2.17712    0.03631  59.962   <2e-16 ***
+```
+
+```{r}
+# Get the fitted default probability
+annalect.c$p_3bfinal   <- predict(glm.test, type = "response")
+ROC3bfinal <- roc(Engagement ~ p_3bfinal, data = annalect.c) # Calculate the ROC curve
+plot(ROC3bfinal) #0.6899
+
+#0.006994688203 0.003592422942 
+hoslem.test(annalect.c$Engagement , annalect.c$p_3bii ) # NA
+
+ggfinal <- ggplot(readmission, aes(x= readmitted,fill = email ) ) + geom_bar(position = "dodge")  + ggtitle("Readmission by Race") 
+
+which(annalect.c$p_3bfinal == unique(annalect.c$p_3bfinal)[1])[1] # 1
+which(annalect.c$p_3bfinal == unique(annalect.c$p_3bfinal)[2])[1] # 9
+which(annalect.c$p_3bfinal == unique(annalect.c$p_3bfinal)[3])[1] # 18
+
+test <- annalect.c[c(1,9,18),c(1,6,10,11)]
+ test
+names(annalect.c) # c(1,6,10,11)
+```
+
+
+```{r, comment="  ", echo=F}
+
+round(unique(annalect.c$p_3bi), digits = 4)
+round(unique(annalect.c$p_3bii), digits = 4)
+
+```
+
+All the selected variables are significant at even below Alpha = 0.001, which is a good indicator. 
+
+```{r}
+finalROCa4 <- plot(ROC3bi, print.auc = TRUE, col = "blue")
+finalROCa4 <- plot(ROC3bii, print.auc = TRUE, col = "red" , print.auc.y = .4 , add = TRUE)
+
+
+ annalect.c %>% ggplot(aes(x=p_3bi, y = p_3bii, fill=email)) +
+  geom_jitter(aes(colour = email)) + theme(axis.text.x=element_text(angle=0,hjust=1))+
+  labs(title = "Q10 response by K-cluster")
+ 
+ 
+```
+
+```{r}
+q3bi.test <- annalect.c %>% 
+  group_by(creativenames.comps, email, Engagement) 
+
+q3bi.test.df <- summarise(q3bi.test,
+  engagementcount = sum(Engagement),
+  count=n()
+)  
+
+q3bi.test.df$ engagement.perc <- 100*(q3bi.test.df$engagementcount / q3bi.test.df$count)
+
+```
+
+```{r}
+q3biii.test <- annalect.c %>% 
+  group_by(email, Engagement) 
+
+q3biii.test.df <- summarise(q3biii.test,
+  engagementcount = sum(Engagement),
+  count=n()
+)  
+
+q3biii.test.df$ engagement.perc <- 100*(q3biii.test.df$engagementcount / q3biii.test.df$count)
+
+
+
+library(WriteXLS)
+WriteXLS(q3biii.test.df, ExcelFileName = "3bresults.xls")
+```
+
+```{r}
+q3a.test <- annalect %>% 
+  group_by(impression_month,  `Impression Hour of Day` ) 
+
+q3a.test.df <- summarise(q3a.test,
+  engagementcount = sum(Engagement),
+  count=n()
+)  
+q3a.test.df$perc <- q3a.test.df$engagementcount /q3a.test.df$count
+
+pt <- q3a.test.df[c(8:14,1:7),5] %>% unlist %>% as.vector
+plot(x=1:14, y=pt)
+336:1
+
+
+```
+
